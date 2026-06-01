@@ -1,0 +1,12 @@
+node_modules/
+.env
+logs/*.log
+logs/*.png
+uploads/bgd/*.pdf
+uploads/photos/*
+uploads/documents/*
+!uploads/bgd/.gitkeep
+!uploads/photos/.gitkeep
+!uploads/documents/.gitkeep
+.DS_Store
+*.session

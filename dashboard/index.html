@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>IVAC Automation Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+:root {
+  --bg: #0f172a; --card: #1e293b; --border: #334155;
+  --accent: #3b82f6; --green: #22c55e; --red: #ef4444;
+  --yellow: #f59e0b; --text: #f1f5f9; --muted: #94a3b8;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; }
+.header { background: var(--card); border-bottom: 1px solid var(--border); padding: 16px 24px;
+  display: flex; align-items: center; justify-content: space-between; }
+.logo { font-size: 20px; font-weight: 700; color: var(--accent); }
+.stats-bar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; padding: 24px; }
+.stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.stat .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.stat .value { font-size: 32px; font-weight: 700; margin-top: 8px; }
+.stat .value.green { color: var(--green); }
+.stat .value.blue { color: var(--accent); }
+.stat .value.red { color: var(--red); }
+.stat .value.yellow { color: var(--yellow); }
+.main { display: grid; grid-template-columns: 1fr 360px; gap: 0; min-height: calc(100vh - 180px); }
+.applications { padding: 0 24px 24px; }
+.section-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--muted); }
+.app-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 16px; }
+.app-card:hover { border-color: var(--accent); }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.status-dot.MONITORING_SLOTS { background: var(--yellow); animation: pulse 1.5s infinite; }
+.status-dot.SLOT_BOOKED, .status-dot.COMPLETED { background: var(--green); }
+.status-dot.FAILED, .status-dot.SLOT_NOT_FOUND, .status-dot.STOPPED { background: var(--red); }
+.status-dot.PENDING, .status-dot.QUEUED { background: #64748b; }
+.status-dot.EXTRACTING_PDF { background: var(--accent); animation: pulse 1.5s infinite; }
+.status-dot.PAYMENT_PENDING, .status-dot.AWAITING_PAYMENT, .status-dot.PROCESSING_PAYMENT {
+  background: #a855f7; animation: pulse 1.5s infinite;
+}
+.status-dot.PROCESSING, .status-dot.UPLOADING_FILES { background: var(--accent); animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.app-info { flex: 1; min-width: 0; }
+.app-name { font-weight: 600; font-size: 15px; }
+.app-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge.MONITORING_SLOTS { background: rgba(245,158,11,.2); color: var(--yellow); }
+.badge.SLOT_BOOKED, .badge.COMPLETED { background: rgba(34,197,94,.2); color: var(--green); }
+.badge.FAILED, .badge.STOPPED, .badge.SLOT_NOT_FOUND { background: rgba(239,68,68,.2); color: var(--red); }
+.badge.PAYMENT_PENDING, .badge.AWAITING_PAYMENT, .badge.PROCESSING_PAYMENT {
+  background: rgba(168,85,247,.2); color: #c084fc; }
+.badge.PENDING { background: rgba(100,116,139,.3); color: var(--muted); }
+.badge.QUEUED { background: rgba(100,116,139,.3); color: var(--muted); }
+.badge.EXTRACTING_PDF { background: rgba(59,130,246,.2); color: var(--accent); }
+.badge.PROCESSING, .badge.UPLOADING_FILES, .badge.REGISTERING { background: rgba(59,130,246,.2); color: var(--accent); }
+.sidebar { border-left: 1px solid var(--border); padding: 24px; background: var(--card); }
+.new-btn { background: var(--accent); color: white; border: none; padding: 10px 20px;
+  border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; width: 100%; margin-bottom: 20px; }
+.new-btn:hover { background: #2563eb; }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.form-group input, .form-group select { width: 100%; background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); padding: 8px 12px; border-radius: 8px; font-size: 14px; }
+.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); }
+.live-log { border-top: 1px solid var(--border); margin-top: 20px; padding-top: 16px; }
+.log-entry { font-size: 11px; font-family: monospace; color: var(--muted); padding: 4px 0;
+  border-bottom: 1px solid rgba(255,255,255,.05); }
+.log-entry.success { color: var(--green); }
+.log-entry.error { color: var(--red); }
+.log-entry.info { color: var(--accent); }
+.appointment-card { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.3);
+  border-radius: 10px; padding: 12px; margin-top: 8px; }
+.appointment-card .token { font-size: 20px; font-weight: 700; color: var(--green); }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">⚡ IVAC Automation</div>
+  <div style="font-size:13px;color:var(--muted);">
+    <span id="liveClock"></span> &nbsp;|&nbsp; BD Time
+  </div>
+</div>
+
+<div class="stats-bar">
+  <div class="stat"><div class="label">Total</div><div class="value blue" id="statTotal">0</div></div>
+  <div class="stat"><div class="label">Booked</div><div class="value green" id="statBooked">0</div></div>
+  <div class="stat"><div class="label">Monitoring</div><div class="value yellow" id="statMonitoring">0</div></div>
+  <div class="stat"><div class="label">Failed</div><div class="value red" id="statFailed">0</div></div>
+  <div class="stat"><div class="label">Success Rate</div><div class="value green" id="statRate">0%</div></div>
+</div>
+
+<div class="main">
+  <div class="applications">
+    <div class="section-title">Active Applications</div>
+    <div id="appList">
+      <div style="color:var(--muted);text-align:center;padding:40px">Loading...</div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="section-title">New Application</div>
+    <div class="form-group">
+      <label>Mode</label>
+      <select id="mode" onchange="toggleMode()">
+        <option value="full">Full Pipeline (BGD PDF)</option>
+        <option value="existing">Existing IVAC Account</option>
+      </select>
+    </div>
+
+    <div id="fullFields">
+      <div class="form-group">
+        <label>BGD PDF File</label>
+        <input type="file" id="bgdPdf" accept=".pdf"/>
+      </div>
+      <div class="form-group">
+        <label>IVAC Password</label>
+        <input type="password" id="ivacPassword" placeholder="Min 8 chars, 1 letter, 1 num, 1 special"/>
+      </div>
+    </div>
+
+    <div id="existingFields" style="display:none">
+      <div class="form-group">
+        <label>IVAC Registered Phone</label>
+        <input type="text" id="ivacPhone" placeholder="01XXXXXXXXX"/>
+      </div>
+      <div class="form-group">
+        <label>IVAC Password</label>
+        <input type="password" id="ivacPasswordEx"/>
+      </div>
+      <div class="form-group">
+        <label>IVAC Registered Email</label>
+        <input type="email" id="ivacEmail"/>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>IVAC Location</label>
+      <select id="location">
+        <option value="Dhaka (Gulshan)">Dhaka (Gulshan)</option>
+        <option value="Dhaka (Jamuna Future Park)">Dhaka (Jamuna Future Park)</option>
+        <option value="Dhaka (Dhanmondi)">Dhaka (Dhanmondi)</option>
+        <option value="Chittagong">Chittagong</option>
+        <option value="Rajshahi">Rajshahi</option>
+        <option value="Sylhet">Sylhet</option>
+        <option value="Khulna">Khulna</option>
+        <option value="Jessore">Jessore</option>
+        <option value="Barisal">Barisal</option>
+        <option value="Mymensingh">Mymensingh</option>
+        <option value="Rangpur">Rangpur</option>
+        <option value="Comilla">Comilla</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Visa Type</label>
+      <select id="visaType">
+        <option>Tourist</option>
+        <option>Medical</option>
+        <option>Business</option>
+        <option>Student</option>
+        <option>Employment</option>
+        <option>Conference</option>
+        <option>Research</option>
+        <option>Transit</option>
+        <option>Entry (X)</option>
+        <option>Visit</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Payment Mode</label>
+      <select id="paymentMode">
+        <option value="self">Self Pay</option>
+        <option value="manual">Manual</option>
+      </select>
+    </div>
+
+    <button class="new-btn" onclick="submitApplication()">🚀 Start Pipeline</button>
+
+    <div class="live-log">
+      <div class="section-title">Live Log</div>
+      <div id="liveLog"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function getApiKey() {
+  const existing = sessionStorage.getItem('apiKey');
+  if (existing) return existing;
+  const key = window.prompt('Enter your Agent API key');
+  if (key) sessionStorage.setItem('apiKey', key.trim());
+  return sessionStorage.getItem('apiKey');
+}
+
+const API_KEY = getApiKey();
+const socket = io({ auth: { token: API_KEY } });
+const API = '/api';
+
+async function apiFetch(url, init = {}) {
+  const headers = { ...(init.headers || {}), 'X-API-Key': API_KEY };
+  return fetch(url, { ...init, headers });
+}
+
+// Asia/Dhaka clock
+function tickDhakaClock() {
+  const s = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Dhaka', hour12: false });
+  document.getElementById('liveClock').textContent = s + ' Asia/Dhaka';
+}
+setInterval(tickDhakaClock, 1000);
+tickDhakaClock();
+
+// Load applications
+async function loadApps() {
+  const r = await apiFetch(`${API}/applications`);
+  const { data } = await r.json();
+  const list = document.getElementById('appList');
+  if (!data?.length) {
+    list.innerHTML = '<div style="color:var(--muted);text-align:center;padding:40px">No applications yet</div>';
+    return;
+  }
+  list.innerHTML = data.map(app => `
+    <div class="app-card" id="app-${app._id}">
+      <div class="status-dot ${app.status}"></div>
+      <div class="app-info">
+        <div class="app-name">${app.applicantName || app.phone || 'Unknown'}</div>
+        <div class="app-meta">${app.ivacLocation} • ${app.visaType} • ${new Date(app.createdAt).toLocaleDateString()}</div>
+        ${app.appointment ? `<div class="appointment-card">
+          <div class="token">🎫 ${app.appointment.token || 'N/A'}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">${app.appointment.date || ''} ${app.appointment.time || ''}</div>
+        </div>` : ''}
+      </div>
+      <span class="badge ${app.status}">${app.status.replace(/_/g,' ')}</span>
+    </div>
+  `).join('');
+}
+
+// Load stats
+async function loadStats() {
+  const r = await apiFetch(`${API}/applications/stats/summary`);
+  const { data } = await r.json();
+  document.getElementById('statTotal').textContent = data.total;
+  document.getElementById('statBooked').textContent = data.booked;
+  document.getElementById('statMonitoring').textContent = data.monitoring;
+  document.getElementById('statFailed').textContent = data.failed;
+  document.getElementById('statRate').textContent = data.successRate + '%';
+}
+
+function toggleMode() {
+  const mode = document.getElementById('mode').value;
+  document.getElementById('fullFields').style.display = mode === 'full' ? 'block' : 'none';
+  document.getElementById('existingFields').style.display = mode === 'existing' ? 'block' : 'none';
+}
+
+async function submitApplication() {
+  const mode = document.getElementById('mode').value;
+  const location = document.getElementById('location').value;
+  const visaType = document.getElementById('visaType').value;
+  const paymentMode = document.getElementById('paymentMode').value;
+
+  addLog('info', `Starting ${mode} pipeline for ${location}...`);
+
+  if (mode === 'full') {
+    const file = document.getElementById('bgdPdf').files[0];
+    const password = document.getElementById('ivacPassword').value;
+    if (!file || !password) { alert('Please select BGD PDF and enter password'); return; }
+
+    const formData = new FormData();
+    formData.append('bgdPdf', file);
+    formData.append('ivacPassword', password);
+    formData.append('ivacLocation', location);
+    formData.append('visaType', visaType);
+    formData.append('paymentMode', paymentMode);
+
+    const r = await apiFetch(`${API}/applications/full-pipeline`, { method: 'POST', body: formData });
+    const data = await r.json();
+    if (!r.ok) {
+      addLog('error', data.error || r.statusText);
+      return;
+    }
+    addLog('success', `${data.message} (id: ${data.applicationId})`);
+    if (data.applicationId) socket.emit('subscribe', data.applicationId);
+  } else {
+    const phone = document.getElementById('ivacPhone').value;
+    const password = document.getElementById('ivacPasswordEx').value;
+    const email = document.getElementById('ivacEmail').value;
+    if (!phone || !password) { alert('Phone and password are required'); return; }
+
+    const r = await apiFetch(`${API}/applications/existing-account`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ivacPhone: phone, ivacPassword: password, ivacEmail: email, ivacLocation: location, visaType, paymentMode }),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      addLog('error', data.error || r.statusText);
+      return;
+    }
+    addLog('success', `${data.message} (id: ${data.applicationId})`);
+    if (data.applicationId) socket.emit('subscribe', data.applicationId);
+  }
+
+  setTimeout(loadApps, 2000);
+}
+
+function addLog(type, msg) {
+  const log = document.getElementById('liveLog');
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${type}`;
+  entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  log.prepend(entry);
+  if (log.children.length > 50) log.removeChild(log.lastChild);
+}
+
+socket.on('connect', () => addLog('info', 'Dashboard socket connected'));
+
+// Socket events
+socket.on('pipelineUpdate', (data) => {
+  addLog(data.success ? 'success' : 'error', `Pipeline ${data.success ? 'completed' : 'failed'}: ${data.error || 'OK'}`);
+  loadApps();
+  loadStats();
+});
+
+socket.on('slotBooked', (data) => {
+  addLog('success', `🎉 SLOT BOOKED! Token: ${data.appointment?.token}`);
+  loadApps();
+});
+
+socket.on('slotsFound', (data) => {
+  addLog('info', `⚡ ${data.count} slot(s) found! Booking now...`);
+});
+
+// Init
+loadApps();
+loadStats();
+setInterval(loadApps, 30000);
+setInterval(loadStats, 15000);
+</script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+{
+  "name": "ivac-automation",
+  "version": "2.0.0",
+  "description": "Full end-to-end IVAC Bangladesh visa appointment automation system",
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "src/api/server.js",
+  "scripts": {
+    "start": "node src/api/server.js",
+    "dev": "nodemon src/api/server.js",
+    "preflight": "node scripts/testConnection.js",
+    "slot-monitor": "node scripts/slotMonitor.js",
+    "install-browsers": "npx playwright install chromium",
+    "test": "node --test tests/*.test.js",
+    "test:all": "node scripts/testConnection.js && node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "playwright": "^1.44.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "axios": "^1.7.2",
+    "pdf-parse": "^1.1.1",
+    "pdf-lib": "^1.17.1",
+    "multer": "^1.4.5-lts.1",
+    "mongoose": "^8.4.0",
+    "winston": "^3.13.0",
+    "node-cron": "^3.0.3",
+    "socket.io": "^4.7.5",
+    "twilio": "^5.2.1",
+    "nodemailer": "^6.9.13",
+    "sharp": "^0.33.4",
+    "uuid": "^10.0.0",
+    "moment": "^2.30.1",
+    "cheerio": "^1.0.0-rc.12",
+    "form-data": "^4.0.0",
+    "tough-cookie": "^4.1.4",
+    "user-agents": "^1.1.234",
+    "2captcha": "^4.0.0",
+    "anticaptcha": "^2.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "joi": "^17.13.1",
+    "p-queue": "^8.0.1",
+    "p-retry": "^6.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.3"
+  }
+}
